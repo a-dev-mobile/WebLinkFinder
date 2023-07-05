@@ -5,18 +5,18 @@
     "version": "0.2.0",
     "configurations": [
     {
-            "name": "main",
+            "name": "finder",
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/main.go",
+            "program": "${workspaceFolder}/cmd/weblinkfinder/main.go",
    
         },   {
-            "name": "main2",
+            "name": "test_gorutine",
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/main2.go",
+            "program": "${workspaceFolder}/cmd/test_gorutine/main.go",
    
         }
     ]
