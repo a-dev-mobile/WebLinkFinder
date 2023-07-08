@@ -7,8 +7,9 @@ import (
 )
 
 func main() {
-	// URL-ы для пропуска и допуска в зависимости от совпадения с регулярными выражениями
 
+
+	// Стартовый URL, максимальное количество горутин, режим отладки
 	config := &weblinkfinder.WebCrawlerConfig{
 		MaxGoroutine:       3,
 		MaxRequests:        10,
@@ -23,7 +24,6 @@ func main() {
 			`.*/packages\/[\w]+$`},
 	}
 
-	// Стартовый URL, максимальное количество горутин, режим отладки
 	startURL := "https://pub.dev/packages"
 
 	queue := weblinkfinder.NewQueue(startURL, config)
@@ -38,7 +38,6 @@ func main() {
 	fmt.Printf("Number of links in the queue: %d\n", len(queueLinks))
 	fmt.Println("")
 
-	// Смена режима отладки и обновление паттернов для сканирования
 
 	links := weblinkfinder.NewLinks(queueLinks, config)
 
