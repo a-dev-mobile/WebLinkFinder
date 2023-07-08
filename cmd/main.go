@@ -8,12 +8,12 @@ import (
 
 func main() {
 
-
 	// Стартовый URL, максимальное количество горутин, режим отладки
 	config := &weblinkfinder.WebCrawlerConfig{
 		MaxGoroutine:       3,
 		MaxRequests:        10,
 		IsDebug:            true,
+		IsSaveLocalFile:    true,
 		QueuesSkipStrRegex: []string{},
 		QueuesAllowStrRegex: []string{
 			`.*packages\?page.*`,
@@ -28,18 +28,17 @@ func main() {
 
 	queue := weblinkfinder.NewQueue(startURL, config)
 
-	queueLinks := queue.GetQueue()
+	findQueue := queue.GetQueue()
 
 	// Вывод ссылок из очереди и их количество
-	for _, link := range queueLinks {
+	for _, link := range findQueue {
 		fmt.Println(link)
 	}
 	fmt.Println("")
-	fmt.Printf("Number of links in the queue: %d\n", len(queueLinks))
+	fmt.Printf("Number of links in the queue: %d\n", len(findQueue))
 	fmt.Println("")
 
-
-	links := weblinkfinder.NewLinks(queueLinks, config)
+	links := weblinkfinder.NewLinks(findQueue, config)
 
 	findLinks := links.GetLinks()
 
@@ -50,4 +49,5 @@ func main() {
 	fmt.Println("")
 	fmt.Printf("Number of found links: %d\n", len(findLinks))
 	fmt.Println("")
+
 }

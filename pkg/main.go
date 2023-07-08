@@ -2,11 +2,13 @@
 package weblinkfinder
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -34,6 +36,7 @@ type WebCrawlerConfig struct {
 	MaxGoroutine        int
 	MaxRequests         int
 	IsDebug             bool
+	IsSaveLocalFile     bool
 	QueuesSkipStrRegex  []string
 	QueuesAllowStrRegex []string
 	LinksSkipStrRegex   []string
@@ -139,13 +142,18 @@ func (f *Queue) GetQueue() []string {
 
 	close(queueCh)
 
-	var keys []string
+	var findQueue []string
 
 	for k := range visitMap {
-		keys = append(keys, k)
+		findQueue = append(findQueue, k)
+	}
+	if f.config.IsSaveLocalFile {
+
+		saveToFile(findQueue, "queue.txt")
+
 	}
 
-	return keys
+	return findQueue
 }
 
 // GetLinks searches for web links for all URLs in queues.
@@ -228,6 +236,11 @@ func (f *Links) GetLinks() []string {
 	}
 
 	close(linksCh)
+
+	if f.config.IsSaveLocalFile {
+		saveToFile(findLinks, "links.txt")
+
+	}
 
 	return findLinks
 }
@@ -342,4 +355,18 @@ func fixUrl(href, base string) (absolute string) {
 	}
 	absolute = baseUrl.ResolveReference(uri).String()
 	return
+}
+func saveToFile(links []string, nameFile string) {
+	file, err := os.OpenFile(nameFile, os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		log.Fatalf("failed creating file: %s", err)
+	}
+
+	datawriter := bufio.NewWriter(file)
+
+	for _, link := range links {
+		_, _ = datawriter.WriteString(link + "\n")
+	}
+	datawriter.Flush()
+	file.Close()
 }
