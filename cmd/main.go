@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	weblinkfinder "weblinkfinder/pkg"
+	weblinkfinder "github.com/a-dev-mobile/weblinkfinder/pkg"
 )
 
 func main() {

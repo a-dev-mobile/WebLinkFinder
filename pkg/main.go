@@ -11,10 +11,9 @@ import (
 	"strings"
 	"sync"
 
-	"weblinkfinder/utils/arrutils"
-	"weblinkfinder/utils/dicutils"
-	"weblinkfinder/utils/regexutils"
-
+	"github.com/a-dev-mobile/weblinkfinder/utils/arrutils"
+	"github.com/a-dev-mobile/weblinkfinder/utils/dicutils"
+	"github.com/a-dev-mobile/weblinkfinder/utils/regexutils"
 	"golang.org/x/net/html"
 )
 
