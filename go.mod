@@ -1,4 +1,4 @@
-module WebLinkFinder
+module weblinkfinder
 
 go 1.20
 

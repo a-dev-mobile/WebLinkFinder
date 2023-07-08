@@ -1,53 +1,64 @@
-package WebLinkFinder
+// / package weblinkfinder содержит логику для поиска веб-ссылок на сайтах.
+package weblinkfinder
 
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"sync"
 
-	"WebLinkFinder/utils/arrutils"
-	"WebLinkFinder/utils/dicutils"
+	"weblinkfinder/utils/arrutils"
+	"weblinkfinder/utils/dicutils"
+	"weblinkfinder/utils/regexutils"
 
 	"golang.org/x/net/html"
 )
 
+/// Queue represents a queue data structure for searching web links.
+
 type Queue struct {
-	startUrl     string
-	maxGoroutine int
-	isDebug      bool
-	skipRegexes  []*regexp.Regexp
-	allowRegexes []*regexp.Regexp
-}
-type Links struct {
-	queues       []string
-	maxGoroutine int
-	isDebug      bool
-	skipRegexes  []*regexp.Regexp
-	allowRegexes []*regexp.Regexp
+	startUrl string
+	config   *WebCrawlerConfig
 }
 
-func NewQueue(startUrl string, maxGoroutine int, isDebug bool, skipRegexes []*regexp.Regexp, allowRegexes []*regexp.Regexp) *Queue {
+// / Links represents a data structure for storing web links.
+type Links struct {
+	queues []string
+	config *WebCrawlerConfig
+}
+
+type WebCrawlerConfig struct {
+	MaxGoroutine        int
+	MaxRequests         int
+	IsDebug             bool
+	QueuesSkipStrRegex  []string
+	QueuesAllowStrRegex []string
+	LinksSkipStrRegex   []string
+	LinksAllowStrRegex  []string
+}
+
+// / NewQueue creates a new Queue instance.
+func NewQueue(startUrl string, config *WebCrawlerConfig) *Queue {
 	return &Queue{
-		startUrl:     startUrl,
-		maxGoroutine: maxGoroutine,
-		isDebug:      isDebug,
-		skipRegexes:  skipRegexes,
-		allowRegexes: allowRegexes,
+		startUrl: startUrl,
+		config:   config,
 	}
 }
-func NewLinks(queues []string, maxGoroutine int, isDebug bool, skipRegexes []*regexp.Regexp, allowRegexes []*regexp.Regexp) *Links {
+
+// / NewLinks creates a new Links instance.
+func NewLinks(queues []string, config *WebCrawlerConfig) *Links {
 	return &Links{
-		queues:       queues,
-		maxGoroutine: maxGoroutine,
-		isDebug:      isDebug,
-		skipRegexes:  skipRegexes,
-		allowRegexes: allowRegexes,
+		queues: queues,
+		config: config,
 	}
 }
+
+// / GetQueue searches for web links starting at startUrl.
+// / Returns a list of web links found on sites.
 func (f *Queue) GetQueue() []string {
 	queueCh := make(chan string)
 
@@ -72,22 +83,27 @@ func (f *Queue) GetQueue() []string {
 		mu.Lock()
 		visitArr := dicutils.GetKeysWithFalse(visitMap)
 		mu.Unlock()
-		
-		fmt.Printf("It remains to check %d\n", len(visitArr))
+
 		if len(visitArr) == 0 {
 			break
 		}
+		// do not wait for all links to be processed
+		lenghtVisited := len(dicutils.GetKeysWithTrue(visitMap))
+		if lenghtVisited >= f.config.MaxRequests {
+			break
+		}
 
+		fmt.Printf("\nVerified links %d\n\n", lenghtVisited)
 		var lenght int
 
-		if f.maxGoroutine < len(visitArr) {
-			lenght = f.maxGoroutine
+		if f.config.MaxGoroutine < len(visitArr) {
+			lenght = f.config.MaxGoroutine
 		} else {
 			lenght = len(visitArr)
 
 		}
 
-		if f.isDebug {
+		if f.config.IsDebug {
 			fmt.Printf("Debug: Start of loop iteration %d, Goroutine start %d\n", count, lenght)
 		}
 		for i := 0; i < lenght; i++ {
@@ -97,13 +113,17 @@ func (f *Queue) GetQueue() []string {
 			visitMap[visitArr[i]] = true
 			mu.Unlock()
 
+			if f.config.IsDebug {
+				fmt.Printf("Debug: Visiting %s\n", visitArr[i])
+			}
+
 			go func(id int, cycle int) {
 				defer wg.Done()
-				if f.isDebug {
+				if f.config.IsDebug {
 					fmt.Printf("Debug: Inside goroutine for cycle %d, Visiting %s\n", cycle, visitArr[id])
 				}
-				queues := fetchLinks(visitArr[id], f.skipRegexes, f.allowRegexes)
-				if f.isDebug && len(queues) > 0 {
+				queues := fetchLinks(visitArr[id], f.config.QueuesSkipStrRegex, f.config.QueuesAllowStrRegex)
+				if f.config.IsDebug && len(queues) > 0 {
 					fmt.Printf("Debug: Found %d links in %s\n", len(queues), visitArr[id])
 				}
 				for _, s := range queues {
@@ -115,12 +135,10 @@ func (f *Queue) GetQueue() []string {
 
 		}
 
-		wg.Wait() // wait for all goroutines to finish
+		wg.Wait()
 	}
 
 	close(queueCh)
-
-	// close(linksCh)
 
 	var keys []string
 
@@ -131,21 +149,23 @@ func (f *Queue) GetQueue() []string {
 	return keys
 }
 
+// GetLinks searches for web links for all URLs in queues.
+// Returns a list of web links found on sites.
 func (f *Links) GetLinks() []string {
 	linksCh := make(chan string)
 
 	findLinks := []string{}
 	links := f.queues
 	var mu sync.Mutex
-	// visitMap[f.startUrl] = false
 
 	var wg sync.WaitGroup
+
+	sum := len(f.queues)
 
 	go func() {
 
 		for s := range linksCh {
 			mu.Lock()
-
 			findLinks = arrutils.AddIfUnique(findLinks, s)
 			mu.Unlock()
 		}
@@ -154,54 +174,49 @@ func (f *Links) GetLinks() []string {
 
 	for {
 		count++
-		// mu.Lock()
-		// visitArr := dicutils.GetKeysWithFalse(visitMap)
-		// mu.Unlock()
 
-		fmt.Printf("It remains to check %d\n", len(links))
+		fmt.Printf("\n%d checked - %d found\n\n", sum-len(links), len(findLinks))
+
 		if len(links) == 0 {
 			break
 		}
 
 		var lenght int
 
-		if f.maxGoroutine < len(links) {
-			lenght = f.maxGoroutine
+		if f.config.MaxGoroutine < len(links) {
+			lenght = f.config.MaxGoroutine
 		} else {
 			lenght = len(links)
 
 		}
 
-		if f.isDebug {
+		if f.config.IsDebug {
 			fmt.Printf("Debug: Start of loop iteration %d, Goroutine start %d\n", count, lenght)
 		}
 
 		for i := 0; i < lenght; i++ {
 			wg.Add(1)
 
-			// mu.Lock()
-			// if i >= lenght {
-
-			// }
-			// mu.Unlock()
 			url := links[i]
-
+			if f.config.IsDebug {
+				fmt.Printf("Debug: Visiting %s\n", url)
+			}
 			go func(url string, cycle int) {
 				defer wg.Done()
-				if f.isDebug {
+				if f.config.IsDebug {
 					fmt.Printf("Debug: Inside goroutine for cycle %d, Visiting %s\n", cycle, url)
 				}
 
-				queues := fetchLinks(url, f.skipRegexes, f.allowRegexes)
+				urls := fetchLinks(url, f.config.LinksSkipStrRegex, f.config.LinksAllowStrRegex)
 
 				mu.Lock()
 				links = arrutils.DeleteElement(links, url)
 				mu.Unlock()
 
-				if f.isDebug && len(queues) > 0 {
-					fmt.Printf("Debug: Found %d links in %s\n", len(queues), url)
+				if f.config.IsDebug && len(urls) > 0 {
+					fmt.Printf("Debug: Found %d links in %s\n", len(urls), url)
 				}
-				for _, s := range queues {
+				for _, s := range urls {
 					linksCh <- s
 
 				}
@@ -210,7 +225,7 @@ func (f *Links) GetLinks() []string {
 
 		}
 
-		wg.Wait() // wait for all goroutines to finish
+		wg.Wait()
 	}
 
 	close(linksCh)
@@ -218,7 +233,18 @@ func (f *Links) GetLinks() []string {
 	return findLinks
 }
 
-func fetchLinks(website string, skipRegexes []*regexp.Regexp, allowRegexes []*regexp.Regexp) []string {
+// / fetchLinks retrieves web links from a given site, taking into account the rules
+// / skipRegexes и allowRegexes.
+func fetchLinks(website string, skipStrRegex []string, allowStrRegex []string) []string {
+	skipRegex, err := regexutils.CompileRegexes(skipStrRegex)
+	if err != nil {
+		log.Fatal(err)
+	}
+	allowRegex, err := regexutils.CompileRegexes(allowStrRegex)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	resp, err := http.Get(website)
 	if err != nil {
 		fmt.Println("ERROR: Failed to crawl \"" + website + "\"")
@@ -236,7 +262,7 @@ func fetchLinks(website string, skipRegexes []*regexp.Regexp, allowRegexes []*re
 	if err != nil {
 		fmt.Println("ERROR: Parse \"" + website + "\"")
 	}
-	// Формируем шаблон регулярного выражения
+	/// Forming a Regular Expression Pattern
 	reBaseUrl, err := regexp.Compile(fmt.Sprintf(`^.*%s.*`, u.Host))
 
 	if err != nil {
@@ -272,7 +298,7 @@ func fetchLinks(website string, skipRegexes []*regexp.Regexp, allowRegexes []*re
 						continue
 					}
 
-					for _, regex := range allowRegexes {
+					for _, regex := range allowRegex {
 						if regex.MatchString(absolute) {
 							allow = true
 							break
@@ -282,7 +308,7 @@ func fetchLinks(website string, skipRegexes []*regexp.Regexp, allowRegexes []*re
 						}
 					}
 
-					for _, regex := range skipRegexes {
+					for _, regex := range skipRegex {
 						if regex.MatchString(absolute) {
 							allow = false
 							break
@@ -305,6 +331,7 @@ func fetchLinks(website string, skipRegexes []*regexp.Regexp, allowRegexes []*re
 
 }
 
+// fixUrl converts a relative URL to an absolute URL based on the base URL.
 func fixUrl(href, base string) (absolute string) {
 	uri, err := url.Parse(href)
 	if err != nil {

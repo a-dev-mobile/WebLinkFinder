@@ -1,9 +1,8 @@
-// strutils/strutils.go
 package strutils
 
 import "strings"
 
-// Reverse возвращает обратную строку.
+// Reverse returns a reverse string.
 func Reverse(s string) string {
 	runes := []rune(s)
 	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
@@ -12,7 +11,7 @@ func Reverse(s string) string {
 	return string(runes)
 }
 
-// ToUpper возвращает строку в верхнем регистре.
+// ToUpper returns an uppercase string.
 func ToUpper(s string) string {
 	return strings.ToUpper(s)
 }
